@@ -1,0 +1,30 @@
+Metadata-Version: 2.1
+Name: djangorestframework-gis
+Version: 0.13
+Summary: Geographic add-ons for Django Rest Framework
+Home-page: https://github.com/djangonauts/django-rest-framework-gis
+Author: Douglas Meehan
+Author-email: django-rest-framework-gis@googlegroups.com
+License: BSD
+Download-URL: https://github.com/djangonauts/django-rest-framework-gis/releases
+Keywords: django,rest-framework,gis,geojson
+Platform: Platform Indipendent
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Operating System :: OS Independent
+Classifier: Framework :: Django
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Requires-Dist: six
+Requires-Dist: djangorestframework (<3.9,>=3.3)
+
+UNKNOWN
+
+

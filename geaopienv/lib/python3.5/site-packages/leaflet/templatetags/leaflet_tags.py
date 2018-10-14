@@ -1,0 +1,159 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
+import json
+
+from django import template
+from django.conf import settings
+from django.utils import six
+from django.utils.encoding import force_text
+
+from leaflet import (app_settings, SPATIAL_EXTENT, SRID, PLUGINS, PLUGINS_DEFAULT,
+                     PLUGIN_ALL, PLUGIN_FORMS, JSONLazyTranslationEncoder)
+
+
+register = template.Library()
+
+
+@register.inclusion_tag('leaflet/css.html')
+def leaflet_css(plugins=None):
+    """
+
+    :param only_plugins:
+    :param exclude_plugins:
+    :return:
+    """
+    plugin_names = _get_plugin_names(plugins)
+    return {
+        "PLUGINS_CSS": _get_all_resources_for_plugins(plugin_names, 'css'),
+    }
+
+
+@register.inclusion_tag('leaflet/js.html')
+def leaflet_js(plugins=None):
+    """
+
+    :param only_plugins:
+    :param exclude_plugins:
+    :return:
+    """
+    plugin_names = _get_plugin_names(plugins)
+    with_forms = PLUGIN_FORMS in plugin_names or PLUGIN_ALL in plugin_names
+    FORCE_IMAGE_PATH = app_settings.get('FORCE_IMAGE_PATH')
+    template_options = hasattr(settings, 'TEMPLATES') \
+        and len(settings.TEMPLATES) \
+        and settings.TEMPLATES[0].get('OPTIONS', None)
+
+    if template_options and 'debug' in template_options:
+        debug = template_options['debug']
+    elif hasattr(settings, 'TEMPLATE_DEBUG'):
+        debug = settings.TEMPLATE_DEBUG
+    else:
+        debug = False
+
+    return {
+        "DEBUG": debug,
+        "SRID": str(SRID) if SRID else None,
+        "PLUGINS_JS": _get_all_resources_for_plugins(plugin_names, 'js'),
+        "with_forms": with_forms,
+        "FORCE_IMAGE_PATH": FORCE_IMAGE_PATH
+    }
+
+
+@register.inclusion_tag('leaflet/_leaflet_map.html')
+def leaflet_map(name, callback=None, fitextent=True, creatediv=True,
+                loadevent=app_settings.get('LOADEVENT'),
+                settings_overrides={}):
+    """
+
+    :param name:
+    :param callback:
+    :param fitextent:
+    :param creatediv:
+    :param loadevent:
+    :param settings_overrides:
+    :return:
+    """
+
+    if settings_overrides == '':
+        settings_overrides = {}
+
+    instance_app_settings = app_settings.copy()  # Allow not overidding global app_settings
+    instance_app_settings.update(**settings_overrides)
+
+    extent = None
+    if instance_app_settings['SPATIAL_EXTENT'] is not None:
+        # Leaflet uses [lat, lng]
+        xmin, ymin, xmax, ymax = instance_app_settings['SPATIAL_EXTENT']
+        bbox = (ymin, xmin, ymax, xmax)
+        extent = [bbox[:2], bbox[2:4]]
+
+    djoptions = dict(
+        srid=SRID,
+        extent=extent,
+        fitextent=fitextent,
+        center=instance_app_settings['DEFAULT_CENTER'],
+        zoom=instance_app_settings['DEFAULT_ZOOM'],
+        minzoom=instance_app_settings['MIN_ZOOM'],
+        maxzoom=instance_app_settings['MAX_ZOOM'],
+        layers=[(force_text(label), url, attrs) for (label, url, attrs) in instance_app_settings.get('TILES')],
+        overlays=[(force_text(label), url, attrs) for (label, url, attrs) in instance_app_settings.get('OVERLAYS')],
+        attributionprefix=force_text(instance_app_settings.get('ATTRIBUTION_PREFIX'), strings_only=True),
+        scale=instance_app_settings.get('SCALE'),
+        minimap=instance_app_settings.get('MINIMAP'),
+        resetview=instance_app_settings.get('RESET_VIEW'),
+        tilesextent=list(instance_app_settings.get('TILES_EXTENT', []))
+    )
+
+    return {
+        # templatetag options
+        'name': name,
+        'loadevents': json.dumps(loadevent.split(), cls=JSONLazyTranslationEncoder),
+        'creatediv': creatediv,
+        'callback': callback,
+        # initialization options
+        'djoptions': json.dumps(djoptions, cls=JSONLazyTranslationEncoder),
+        # settings
+        'NO_GLOBALS': instance_app_settings.get('NO_GLOBALS'),
+    }
+
+
+@register.simple_tag
+def leaflet_json_config():
+    settings_as_json = app_settings.copy()
+
+    if SPATIAL_EXTENT is not None:
+        xmin, ymin, xmax, ymax = settings_as_json.pop('SPATIAL_EXTENT')
+        settings_as_json['SPATIAL_EXTENT'] = {'xmin': xmin, 'ymin': ymin,
+                                              'xmax': xmax, 'ymax': ymax}
+
+    return json.dumps(settings_as_json, cls=JSONLazyTranslationEncoder)
+
+
+def _get_plugin_names(plugin_names_from_tag_parameter):
+    """
+    Returns a list of plugin names, specified in the parameter.
+    Used by tags to determine which plugins to include
+    :param pluging_names_parameter:
+    :return:
+    """
+    if isinstance(plugin_names_from_tag_parameter, (six.binary_type, six.text_type)):
+        names = plugin_names_from_tag_parameter.split(',')
+        return [n.strip() for n in names]
+    else:
+        return [PLUGINS_DEFAULT]
+
+
+def _get_all_resources_for_plugins(plugin_names, resource_type):
+    """
+    Returns a list of URLs for the plugins with the specified resource type (js, css, ...)
+    :param plugin_names:
+    :param resource_type:
+    :return:
+    """
+    result = []
+    for plugin_name in plugin_names:
+        if plugin_name in PLUGINS:
+            result.extend(PLUGINS[plugin_name].get(resource_type, []))
+
+    return result
